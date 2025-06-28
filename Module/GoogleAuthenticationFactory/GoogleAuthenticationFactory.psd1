@@ -15,58 +15,58 @@ RootModule = '.\GoogleAuthenticationFactory.psm1'
 ModuleVersion = '1.0.0'
 
 # Supported PSEditions
-# CompatiblePSEditions = @()
+CompatiblePSEditions = @('Core', 'Desktop')
 
 # ID used to uniquely identify this module
 GUID = '9e1ca138-b708-440a-9be2-ba6b85ff9bc1'
 
 # Author of this module
-Author = 'JiriFormacek'
+Author = 'Jiri Formacek'
 
 # Company or vendor of this module
-CompanyName = 'Unknown'
+CompanyName = 'GreyCorbel Solutions'
 
 # Copyright statement for this module
-Copyright = '(c) JiriFormacek. All rights reserved.'
+Copyright = '(c) 2024 - 2025, Jiri Formacek, GreyCorbel Solutions. All rights reserved.'
 
 # Description of the functionality provided by this module
-# Description = ''
+Description = 'Provides Google authentication factory for easy authentication with Google in PowerShell'
 
 # Minimum version of the PowerShell engine required by this module
-# PowerShellVersion = ''
+PowerShellVersion = '5.1'
 
 # Name of the PowerShell host required by this module
-# PowerShellHostName = ''
+PowerShellHostName = ''
 
 # Minimum version of the PowerShell host required by this module
-# PowerShellHostVersion = ''
+PowerShellHostVersion = ''
 
 # Minimum version of Microsoft .NET Framework required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
 # DotNetFrameworkVersion = ''
 
 # Minimum version of the common language runtime (CLR) required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
-# ClrVersion = ''
+ClrVersion = ''
 
 # Processor architecture (None, X86, Amd64) required by this module
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-# RequiredModules = @()
+RequiredModules = @()
 
 # Assemblies that must be loaded prior to importing this module
-# RequiredAssemblies = @()
+RequiredAssemblies = @()
 
 # Script files (.ps1) that are run in the caller's environment prior to importing this module.
-# ScriptsToProcess = @()
+ScriptsToProcess = @()
 
 # Type files (.ps1xml) to be loaded when importing this module
-# TypesToProcess = @()
+TypesToProcess = @()
 
 # Format files (.ps1xml) to be loaded when importing this module
-# FormatsToProcess = @()
+FormatsToProcess = @()
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-# NestedModules = @()
+NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @('Get-GoogleAccessToken','New-GoogleAuthenticationFactory', 'Get-GoogleAuthenticationFactory', 'Test-GoogleAccessToken')
@@ -87,7 +87,7 @@ AliasesToExport = @()
 # ModuleList = @()
 
 # List of all files packaged with this module
-# FileList = @()
+FileList = @('GoogleAuthenticationFactory.psm1', 'GoogleAuthenticationFactory.psd1')
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
 PrivateData = @{
@@ -95,13 +95,13 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        # Tags = @()
+        Tags = @('Google', 'Authentication', 'Factory', 'PowerShell')
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        LicenseUri = 'https://raw.githubusercontent.com/GreyCorbel/GoogleAuthenticationFactory/main/LICENSE'
 
         # A URL to the main website for this project.
-        # ProjectUri = ''
+        ProjectUri = 'https://github.com/GreyCorbel/GoogleAuthenticationFactory'
 
         # A URL to an icon representing this module.
         # IconUri = ''
