@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Configuration>
+    <ViewDefinitions>
+        <View>
+        <Name>TokenValidationResult</Name>
+        <ViewSelectedBy>
+            <TypeName>Google.AccessToken</TypeName>
+        </ViewSelectedBy>
+        <TableControl>
+            <TableHeaders>
+            <TableColumnHeader>
+            <Width>24</Width>
+            </TableColumnHeader>
+            <TableColumnHeader>
+            <Width>12</Width>
+            </TableColumnHeader>
+            <TableColumnHeader>
+            <Width>12</Width>
+            </TableColumnHeader>
+            <TableColumnHeader>
+            <Width>20</Width>
+            </TableColumnHeader>
+            </TableHeaders>
+            <TableRowEntries>
+            <TableRowEntry>
+                <TableColumnItems>
+                    <TableColumnItem>
+                        <PropertyName>access_token</PropertyName>
+                    </TableColumnItem>
+                    <TableColumnItem>
+                        <PropertyName>token_type</PropertyName>
+                    </TableColumnItem>
+                    <TableColumnItem>
+                        <PropertyName>expires_in</PropertyName>
+                    </TableColumnItem>
+                    <TableColumnItem>
+                        <PropertyName>expiration_time</PropertyName>
+                    </TableColumnItem>
+                </TableColumnItems>
+            </TableRowEntry>
+            </TableRowEntries>
+        </TableControl>
+        </View>
+    </ViewDefinitions>
+</Configuration>

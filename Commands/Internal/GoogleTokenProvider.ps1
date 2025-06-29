@@ -64,7 +64,7 @@ class GoogleTokenProvider
 			}
 
 			$response | Add-Member -MemberType NoteProperty -Name expiration_time -Value ([DateTime]::UtcNow.AddSeconds($response.expires_in)) -PassThru
-
+            $response.psobject.TypeNames.Insert(0,"Google.AccessToken")
 			$this.Token = $response
 		}
 		return $this.token

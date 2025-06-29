@@ -144,8 +144,7 @@ class GoogleTokenProvider
 		$this.scopes = $scopes
 		$this.TargetUserEmail = $TargetUserEmail
         $this.Name = $Name
-        # PS5.1 does not support Depth param
-		$this.credential = ConvertFrom-Json -InputObject $GoogleAccessJson # -Depth 10
+		$this.credential = ConvertFrom-Json -InputObject $GoogleAccessJson -Depth 10
 		$this.AiLogger = $AiLogger
 	}
 	
@@ -197,7 +196,7 @@ class GoogleTokenProvider
 			}
 
 			$response | Add-Member -MemberType NoteProperty -Name expiration_time -Value ([DateTime]::UtcNow.AddSeconds($response.expires_in)) -PassThru
-
+            $response.psobject.TypeNames.Insert(0,"Google.AccessToken")
 			$this.Token = $response
 		}
 		return $this.token
