@@ -15,7 +15,7 @@ RootModule = '.\GoogleAuthenticationFactory.psm1'
 ModuleVersion = '1.0.0'
 
 # Supported PSEditions
-CompatiblePSEditions = @('Core', 'Desktop')
+CompatiblePSEditions = @('Core')
 
 # ID used to uniquely identify this module
 GUID = '9e1ca138-b708-440a-9be2-ba6b85ff9bc1'
@@ -33,7 +33,7 @@ Copyright = '(c) 2024 - 2025, Jiri Formacek, GreyCorbel Solutions. All rights re
 Description = 'Provides Google authentication factory for easy authentication with Google in PowerShell'
 
 # Minimum version of the PowerShell engine required by this module
-PowerShellVersion = '5.1'
+PowerShellVersion = '7.3'
 
 # Name of the PowerShell host required by this module
 PowerShellHostName = ''

@@ -144,7 +144,8 @@ class GoogleTokenProvider
 		$this.scopes = $scopes
 		$this.TargetUserEmail = $TargetUserEmail
         $this.Name = $Name
-		$this.credential = ConvertFrom-Json -InputObject $GoogleAccessJson -Depth 10
+        # PS5.1 does not support Depth param
+		$this.credential = ConvertFrom-Json -InputObject $GoogleAccessJson # -Depth 10
 		$this.AiLogger = $AiLogger
 	}
 	

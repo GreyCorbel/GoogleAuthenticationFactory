@@ -13,6 +13,8 @@ This module provides a way to authenticate against Google REST APIs using servic
   - Activated by setting the `$AiLogger` parameter in `New-GoogleAuthenticationFactory` command.
   - for details, see module [AiLogging](https://github.com/GreyCorbel/AiLogging)
 
+Module is supported on PowerShell 7.3 and higner because lask of cryptography support for PKCS8 in lower versions of .NET.
+
 # Usage
 ## Simple use without impersonation:
 ```powershell
