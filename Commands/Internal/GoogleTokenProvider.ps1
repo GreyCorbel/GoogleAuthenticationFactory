@@ -22,6 +22,7 @@ class GoogleTokenProvider
 		{
             Write-Verbose "Fetching new access token for Google API"
 			$ServiceAccountEmail = $this.credential.client_email
+            Write-Verbose "Extracting private kay from credential"
 			$PrivateKey = $this.credential.private_key -replace '-----BEGIN PRIVATE KEY-----\n' -replace '\n-----END PRIVATE KEY-----\n' -replace '\n'
 			$header = @{
 				alg = "RS256"
@@ -57,6 +58,7 @@ class GoogleTokenProvider
 			}
 			$requestStart = Get-Date
             $tokenUri = "https://oauth2.googleapis.com/token"
+            Write-Verbose "Calling Google API to get access token: $tokenUri"
 			$response = Invoke-RestMethod -Uri $tokenUri -Method POST -Body $body -ContentType "application/x-www-form-urlencoded"
 			if($this.AiLogger)
 			{
@@ -77,6 +79,7 @@ class GoogleTokenProvider
 			Authorization = "$($t.token_type) $($t.access_token)"
 		}
         $tokenUri = 'https://www.googleapis.com/oauth2/v3/tokeninfo'
+        Write-Verbose "Calling Google API to test access token: $tokenUri"
         $requestStart = Get-Date
 		$response = Invoke-RestMethod -Uri $tokenUri -Headers $headers
         if($this.AiLogger)
