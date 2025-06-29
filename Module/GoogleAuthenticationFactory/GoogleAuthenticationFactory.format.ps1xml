@@ -2,7 +2,7 @@
 <Configuration>
     <ViewDefinitions>
         <View>
-        <Name>TokenValidationResult</Name>
+        <Name>GoogleAccessToken</Name>
         <ViewSelectedBy>
             <TypeName>Google.AccessToken</TypeName>
         </ViewSelectedBy>
