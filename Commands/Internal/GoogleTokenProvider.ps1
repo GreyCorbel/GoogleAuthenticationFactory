@@ -56,7 +56,7 @@ class GoogleTokenProvider
 				grant_type = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 				assertion  = $jwt
 			}
-			$requestStart = Get-Date
+			$requestStart = Get-Date -AsUTC
             $tokenUri = "https://oauth2.googleapis.com/token"
             Write-Verbose "Calling Google API to get access token: $tokenUri"
 			$response = Invoke-RestMethod -Uri $tokenUri -Method POST -Body $body -ContentType "application/x-www-form-urlencoded"
@@ -80,7 +80,7 @@ class GoogleTokenProvider
 		}
         $tokenUri = 'https://www.googleapis.com/oauth2/v3/tokeninfo'
         Write-Verbose "Calling Google API to test access token: $tokenUri"
-        $requestStart = Get-Date
+        $requestStart = Get-Date -AsUTC
 		$response = Invoke-RestMethod -Uri $tokenUri -Headers $headers
         if($this.AiLogger)
         {
