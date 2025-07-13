@@ -73,6 +73,7 @@ jobs:
         write-host "Publishing from: $env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME"
         try
         {
+          Get-PsResourceRepository | Out-Null
           $env:PSModulePath = "$env:PSModulePath;$env:GITHUB_WORKSPACE\Module"
           "PSModulePath: $env:PSModulePath"
           Publish-Module -Path "$env:GITHUB_WORKSPACE\Module\$env:MODULE_NAME" -NuGetApiKey "$env:SECRET"
