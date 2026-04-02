@@ -1,3 +1,41 @@
+<#
+.SYNOPSIS
+Creates a Google authentication factory for acquiring access tokens.
+
+.DESCRIPTION
+Creates a new GoogleTokenProvider instance from service account JSON content and
+requested scopes. Optionally configures user impersonation, registers the factory
+under a name for later retrieval, and enables Application Insights logging.
+
+.PARAMETER GoogleAccessJson
+The raw JSON content of the Google service account credentials.
+
+.PARAMETER Scopes
+One or more Google API scopes to request when acquiring access tokens.
+
+.PARAMETER TargetUserEmail
+The email address of the user to impersonate. If omitted, no impersonation is used.
+
+.PARAMETER Name
+An optional name used to register the factory in the module-level factory dictionary.
+
+.PARAMETER AiLogger
+Optional logger instance used for Application Insights logging.
+
+.EXAMPLE
+PS> $jsonData = Get-Content -Path 'C:\service-account.json' -Raw
+PS> New-GoogleAuthenticationFactory -GoogleAccessJson $jsonData -Scopes 'https://www.googleapis.com/auth/admin.directory.user.readonly'
+
+Creates a new factory and makes it the current default factory.
+
+.EXAMPLE
+PS> New-GoogleAuthenticationFactory -GoogleAccessJson $jsonData -Scopes 'https://www.googleapis.com/auth/chat.admin.spaces.readonly' -TargetUserEmail 'user@contoso.com' -Name 'chatAdminApi'
+
+Creates a named factory that uses user impersonation.
+
+.OUTPUTS
+GoogleTokenProvider
+#>
 function New-GoogleAuthenticationFactory
 {
 	param

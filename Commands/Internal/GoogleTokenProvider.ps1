@@ -59,15 +59,29 @@ class GoogleTokenProvider
 			$requestStart = Get-Date -AsUTC
             $tokenUri = "https://oauth2.googleapis.com/token"
             Write-Verbose "Calling Google API to get access token: $tokenUri"
-			$response = Invoke-RestMethod -Uri $tokenUri -Method POST -Body $body -ContentType "application/x-www-form-urlencoded"
-			if($this.AiLogger)
+			$response = Invoke-WebRequest -Uri $tokenUri -Method POST -Body $body -ContentType "application/x-www-form-urlencoded" -SkipHttpErrorCheck
+			if($response.StatusCode -eq [System.Net.HttpStatusCode]::OK)
 			{
-				Write-AiDependency -Target 'GoogleAuth' -DependencyType 'HTTP' -Name 'GetAccessToken' -Data $tokenUri -Start $requestStart -ResultCode 'Ok' -Success $true -Connection $this.AiLogger
+				if($this.AiLogger)
+				{
+					Write-AiDependency -Target 'GoogleAuth' -DependencyType 'HTTP' -Name 'GetAccessToken' -Data $tokenUri -Start $requestStart -ResultCode 'Ok' -Success $true -Connection $this.AiLogger
+				}
+				#when succeeded, response is the token object, we add the expiration_time property to it for easier caching and check later
+				$responseToken = $response.Content | ConvertFrom-Json 
+				$responseToken | Add-Member -MemberType NoteProperty -Name expiration_time -Value ([DateTime]::UtcNow.AddSeconds($responseToken.expires_in))
+	            $responseToken.psobject.TypeNames.Insert(0,"Google.AccessToken")
+				$this.Token = $responseToken
 			}
-
-			$response | Add-Member -MemberType NoteProperty -Name expiration_time -Value ([DateTime]::UtcNow.AddSeconds($response.expires_in)) -PassThru
-            $response.psobject.TypeNames.Insert(0,"Google.AccessToken")
-			$this.Token = $response
+			else
+			{
+				if($this.AiLogger)
+				{
+					Write-AiDependency -Target 'GoogleAuth' -DependencyType 'HTTP' -Name 'GetAccessToken' -Data $tokenUri -Start $requestStart -ResultCode $response.StatusCode.ToString() -Success $false -Connection $this.AiLogger
+				}
+				
+				$ex = new-object System.Net.Http.HttpRequestException( $response, $null, $response.StatusCode )
+				throw $ex
+			}
 		}
 		return $this.token
 	}
@@ -81,12 +95,20 @@ class GoogleTokenProvider
         $tokenUri = 'https://www.googleapis.com/oauth2/v3/tokeninfo'
         Write-Verbose "Calling Google API to test access token: $tokenUri"
         $requestStart = Get-Date -AsUTC
-		$response = Invoke-RestMethod -Uri $tokenUri -Headers $headers
+		$response = Invoke-WebRequest -Uri $tokenUri -Headers $headers -SkipHttpErrorCheck
         if($this.AiLogger)
         {
-            Write-AiDependency -Target 'GoogleAuth' -DependencyType 'HTTP' -Name 'TestAccessToken' -Data $tokenUri -Start $requestStart -ResultCode 'Ok' -Success $true -Connection $this.AiLogger
+            Write-AiDependency -Target 'GoogleAuth' -DependencyType 'HTTP' -Name 'TestAccessToken' `
+				-Data $tokenUri -Start $requestStart `
+				-ResultCode $response.StatusCode.ToString() `
+				-Success ($response.StatusCode -eq [System.Net.HttpStatusCode]::OK) `
+				-Connection $this.AiLogger
         }
-
-		return $response
+		if($response.StatusCode -ne [System.Net.HttpStatusCode]::OK)
+		{
+			$ex = new-object System.Net.Http.HttpRequestException( $response, $null, $response.StatusCode )
+			throw $ex
+		}
+		return ($response.Content | ConvertFrom-Json)
     }
 }
