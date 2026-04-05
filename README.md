@@ -1,66 +1,110 @@
 # GoogleAuthenticationFactory
-Powershell authentication provider for Google REST APIs
 
-# Purpose
-This module provides a way to authenticate against Google REST APIs using service accounts or user credentials. It supports both service account authentication and allows user impersonation.
+PowerShell authentication provider for Google REST APIs.
 
-# Features
-- Authenticate using service account credentials.
-- Impersonate a user by providing their email address.
-- Retrieve access tokens for Google APIs
-- Getting content of issued token for easy ptroubleshooting of authentication issues
-- Optional ApplicationInsights logging for debugging and monitoring purposes.
-  - Activated by setting the `$AiLogger` parameter in `New-GoogleAuthenticationFactory` command.
-  - for details, see module [AiLogging](https://github.com/GreyCorbel/AiLogging)
+## Purpose
 
-Module is supported on PowerShell 7.3 and higner because lack of cryptography support for PKCS8 in lower versions of .NET.
+This module provides authentication helpers for Google REST APIs. It supports:
 
-# Usage
-## Simple use without impersonation:
+- Google service account JSON credentials
+- User impersonation (domain-wide delegation)
+- Azure AD federated credentials flow
+
+## Features
+
+- Create and register reusable Google authentication factories
+- Retrieve Google OAuth access tokens
+- Return tokens as an Authorization header hashtable for REST calls
+- Force token refresh when needed
+- Inspect issued token content for troubleshooting
+- Optional Application Insights dependency logging via `-AiLogger`
+  - Logger can be created with [AiLogging](https://github.com/GreyCorbel/AiLogging)
+
+## Requirements
+
+- PowerShell 7.3 or higher
+
+The module requires .NET cryptography support for PKCS8 keys, which is not available in older runtime combinations.
+
+## Public Commands
+
+- `New-GoogleAuthenticationFactory`
+- `Get-GoogleAuthenticationFactory`
+- `Get-GoogleAccessToken`
+- `Test-GoogleAccessToken`
+
+## Usage
+
+### Service account (no impersonation)
+
 ```powershell
-# Import the module
 Import-Module GoogleAuthenticationFactory
 
-#load service account credentials from a JSON file
-$jsonData = [System.IO.File]::ReadAllText('C:\path\to\your\service-account.json')
+$jsonData = Get-Content -Path 'C:\path\to\your\service-account.json' -Raw
 
-# Create a new authentication factory
 New-GoogleAuthenticationFactory `
-	-GoogleAccessJson $jsonData `
-	-Scopes  @('https://www.googleapis.com/auth/admin.directory.customer.readonly','https://www.googleapis.com/auth/admin.directory.user.readonly') `
+    -GoogleAccessJson $jsonData `
+    -Scopes @(
+        'https://www.googleapis.com/auth/admin.directory.customer.readonly',
+        'https://www.googleapis.com/auth/admin.directory.user.readonly'
+    ) `
     -Name 'googleAdminApi'
 
-#get the access token from kmost recently created authentication factory
 $token = Get-GoogleAccessToken
-
-#display data from the token
 Test-GoogleAccessToken
 ```
 
-## Use with user impersonation:
+### Service account with user impersonation
+
 ```powershell
-# Import the module
 Import-Module GoogleAuthenticationFactory
 
-#load service account credentials from a JSON file
-$jsonData = get-content -Path 'C:\path\to\your\service-account.json' -Raw
+$jsonData = Get-Content -Path 'C:\path\to\your\service-account.json' -Raw
 
-# Create a new authentication factory
 New-GoogleAuthenticationFactory `
-	-GoogleAccessJson $jsonData `
-	-Scopes  @('https://www.googleapis.com/auth/chat.admin.spaces.readonly') `
+    -GoogleAccessJson $jsonData `
+    -Scopes @('https://www.googleapis.com/auth/chat.admin.spaces.readonly') `
     -TargetUserEmail 'myuser@myorganization.com' `
     -Name 'chatAdminApi'
 
-#get the access token from kmost recently created authentication factory
 $token = Get-GoogleAccessToken -Factory 'chatAdminApi'
-
-#display data from the token
 Test-GoogleAccessToken -Factory 'chatAdminApi'
 ```
-## Use with AppInsights logging
+
+### Azure AD federated credentials
+
 ```powershell
-import-module AiLogging
+Import-Module GoogleAuthenticationFactory
+
+New-GoogleAuthenticationFactory `
+    -AadAuthenticationFactory $aadFactory `
+    -WorkloadIdentityProviderResourceId '//iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com' `
+    -ServiceAccountEmail 'service-account@project-id.iam.gserviceaccount.com' `
+    -Scopes @('https://www.googleapis.com/auth/cloud-platform') `
+    -Name 'federatedApi'
+
+$token = Get-GoogleAccessToken -Factory 'federatedApi'
+```
+
+### Get Authorization header for REST calls
+
+```powershell
+$headers = Get-GoogleAccessToken -Factory 'chatAdminApi' -AsHashTable
+$response = Invoke-RestMethod -Uri 'https://chat.googleapis.com/v1/spaces' -Headers $headers
+$response.spaces
+```
+
+### Force refresh token
+
+```powershell
+$token = Get-GoogleAccessToken -Factory 'chatAdminApi' -ForceRefresh
+```
+
+### With Application Insights logging
+
+```powershell
+Import-Module AiLogging
+Import-Module GoogleAuthenticationFactory
 
 $AiLogger = Connect-AiLogger `
     -ConnectionString $env:ApplicationInsightsConnectionString `
@@ -68,18 +112,14 @@ $AiLogger = Connect-AiLogger `
     -Component 'MyTestComponent' `
     -Instance $env:ComputerName
 
-# Import the module
-Import-Module GoogleAuthenticationFactory
+$jsonData = Get-Content -Path 'C:\path\to\your\service-account.json' -Raw
+
 New-GoogleAuthenticationFactory `
-	-GoogleAccessJson $jsonData `
-	-Scopes  @('https://www.googleapis.com/auth/chat.admin.spaces.readonly') `
+    -GoogleAccessJson $jsonData `
+    -Scopes @('https://www.googleapis.com/auth/chat.admin.spaces.readonly') `
     -TargetUserEmail 'myuser@myorganization.com' `
     -Name 'chatAdminApi' `
     -AiLogger $AiLogger
-
-$headers = Get-GoogleAccessToken -Factory 'chatAdminApi' -AsHashTable
-$esponse = Invoke-RestMethod -Uri 'https://chat.googleapis.com/v1/spaces' -Headers $headers
-$response.spaces
 ```
 
 

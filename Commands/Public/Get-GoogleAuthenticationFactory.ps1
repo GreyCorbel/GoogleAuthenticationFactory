@@ -31,6 +31,7 @@ Returns all registered Google authentication factories.
 GoogleTokenProvider
 System.Object[]
 #>
+
 function Get-GoogleAuthenticationFactory
 {
 	param

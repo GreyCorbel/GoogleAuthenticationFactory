@@ -16,6 +16,9 @@ The authentication factory instance to use. You can pass a factory object or the
 name of a registered factory. If omitted, the current module-level default factory
 is used.
 
+.PARAMETER ForceRefresh
+Forces acquisition of a new token instead of reusing a cached valid token.
+
 .EXAMPLE
 PS> Get-GoogleAccessToken
 
@@ -25,6 +28,11 @@ Gets the access token from the most recently created factory.
 PS> Get-GoogleAccessToken -Factory 'googleAdminApi' -AsHashTable
 
 Gets the access token from the named factory and returns it as an Authorization header hashtable.
+
+.EXAMPLE
+PS> Get-GoogleAccessToken -Factory 'googleAdminApi' -ForceRefresh
+
+Forces a fresh token retrieval from the named factory.
 
 .OUTPUTS
 System.Collections.Hashtable
@@ -36,7 +44,8 @@ function Get-GoogleAccessToken
 	(
 		[switch]$AsHashTable,
 		[Parameter()]
-		$Factory = $script:GoogleTokenProvider
+		$Factory = $script:GoogleTokenProvider,
+		[switch]$ForceRefresh
 	)
 
 	process
@@ -46,7 +55,7 @@ function Get-GoogleAccessToken
             #name of factory has been passed
             $Factory = Get-GoogleAuthenticationFactory -Name $Factory
         }
-		$token = $Factory.GetAccessToken()
+		$token = $Factory.GetAccessToken($ForceRefresh)
 		if($AsHashTable)
 		{
 			@{
