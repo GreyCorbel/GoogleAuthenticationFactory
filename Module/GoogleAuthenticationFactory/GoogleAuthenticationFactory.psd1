@@ -33,7 +33,7 @@ Copyright = '(c) 2024 - 2025, Jiri Formacek, GreyCorbel Solutions. All rights re
 Description = 'Provides Google authentication factory for easy authentication with Google in PowerShell'
 
 # Minimum version of the PowerShell engine required by this module
-PowerShellVersion = '7.3'
+PowerShellVersion = '7.2'
 
 # Name of the PowerShell host required by this module
 PowerShellHostName = ''
@@ -116,7 +116,7 @@ PrivateData = @{
         # RequireLicenseAcceptance = $false
 
         # External dependent modules of this module
-        ExternalModuleDependencies = @('AadAuthenticationFactory')  
+        ExternalModuleDependencies = @('AadAuthenticationFactory')
 
     } # End of PSData hashtable
 
