@@ -73,7 +73,34 @@ Test-GoogleAccessToken -Factory 'chatAdminApi'
 
 ### Azure AD federated credentials
 
+Before using this flow, configure Entra ID and Google Workload Identity Federation:
+
+1. Create an Entra ID application that publishes an API.
+2. In the Entra ID app manifest, set:
+
+```json
+"accessTokenAcceptedVersion": 2
+```
+3. Give your Entra ID SPN permission to retrieve tokens for the app created above
+4. Create a Google Workload Identity Pool.
+5. Create a provider in the pool with:
+     - Issuer URL: `https://login.microsoftonline.com/<TENANT-ID>/v2.0`
+     - Allowed audience: the Entra ID app client ID from step 1
+     - Attribute mapping:
+         - `attribute.tid` -> `assertion.tid`
+         - `attribute.sub` -> `assertion.sub`
+6. Create a Google service account and grant required Google API permissions/roles.
+7. On the Google service account, grant principal access to the principal below, with roles
+    - Service Account Token Creator (for impersonation of servie account)
+    - Workload Identity User (for federation with workload identity pool)
+
+```text
+principalSet://iam.googleapis.com/projects/<PROJECT-NUMBER>/locations/global/workloadIdentityPools/<POOL-ID>/attribute.tid/<TENANT-ID>
+```
+
 ```powershell
+Import-Module AadAuthenticationFactory
+$aadFactory = New-AadAuthenticationFactory -UseManagedIdentity -Name 'uami' -DefaultScopes '<APPI-ID-URI-of-app-created-in-step-1>/.default'
 Import-Module GoogleAuthenticationFactory
 
 New-GoogleAuthenticationFactory `
@@ -84,6 +111,7 @@ New-GoogleAuthenticationFactory `
     -Name 'federatedApi'
 
 $token = Get-GoogleAccessToken -Factory 'federatedApi'
+Test-GoogleAccessToken
 ```
 
 ### Get Authorization header for REST calls
