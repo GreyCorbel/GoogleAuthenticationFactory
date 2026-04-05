@@ -6,7 +6,9 @@ Creates a Google authentication factory for acquiring access tokens.
 Creates a new GoogleTokenProvider instance using either service account JSON
 credentials or Azure AD federated credentials, then stores it as the current
 module-level default provider. Optionally registers the provider by name and
-enables Application Insights logging.
+enables Application Insights logging. In the federated flow, you can optionally
+exchange the federated token for a service-account access token by supplying
+`-ServiceAccountEmail`.
 
 .PARAMETER GoogleAccessJson
 The raw JSON content of the Google service account credentials.
@@ -25,7 +27,9 @@ federated identity.
 Used by parameter set: AadFederated.
 
 .PARAMETER ServiceAccountEmail
-The Google service account email to impersonate for federated credentials.
+The Google service account email used to exchange the federated token for a
+native Google service-account access token. If omitted, the factory uses the
+federated token directly.
 
 Used by parameter set: AadFederated.
 
@@ -59,6 +63,11 @@ PS> New-GoogleAuthenticationFactory -AadAuthenticationFactory $aadFactory -Workl
 
 Creates a named factory using Azure AD federated credentials.
 
+.EXAMPLE
+PS> New-GoogleAuthenticationFactory -AadAuthenticationFactory $aadFactory -WorkloadIdentityProviderResourceId '//iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com' -Scopes 'https://www.googleapis.com/auth/cloud-platform' -Name 'federatedApi'
+
+Creates a named factory that uses the federated token directly without service-account exchange.
+
 .OUTPUTS
 GoogleTokenProvider
 #>
@@ -90,8 +99,8 @@ function New-GoogleAuthenticationFactory
 
 		[Parameter(ParameterSetName='AadFederated')]
 		[string]
-			#Resource ID of the Google workload identity provider configured in Azure AD
-			#Example: //iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com
+			#email address of the service account to impersonate. If not specified, the factory will use the federated token directly without exchanging for a service account token.
+			#Important: to be able to impersonate, the federated identity must have "Service Account Token Creator" role on the target service account
 		$ServiceAccountEmail,
 		[Parameter(Mandatory)]
 		[string[]]

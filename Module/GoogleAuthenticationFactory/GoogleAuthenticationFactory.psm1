@@ -17,6 +17,9 @@ The authentication factory instance to use. You can pass a factory object or the
 name of a registered factory. If omitted, the current module-level default factory
 is used.
 
+.PARAMETER ForceRefresh
+Forces acquisition of a new token instead of reusing a cached valid token.
+
 .EXAMPLE
 PS> Get-GoogleAccessToken
 
@@ -26,6 +29,11 @@ Gets the access token from the most recently created factory.
 PS> Get-GoogleAccessToken -Factory 'googleAdminApi' -AsHashTable
 
 Gets the access token from the named factory and returns it as an Authorization header hashtable.
+
+.EXAMPLE
+PS> Get-GoogleAccessToken -Factory 'googleAdminApi' -ForceRefresh
+
+Forces a fresh token retrieval from the named factory.
 
 .OUTPUTS
 System.Collections.Hashtable
@@ -94,6 +102,7 @@ Returns all registered Google authentication factories.
 GoogleTokenProvider
 System.Object[]
 #>
+
 function Get-GoogleAuthenticationFactory
 {
 	param
@@ -135,18 +144,43 @@ function Get-GoogleAuthenticationFactory
 Creates a Google authentication factory for acquiring access tokens.
 
 .DESCRIPTION
-Creates a new GoogleTokenProvider instance from service account JSON content and
-requested scopes. Optionally configures user impersonation, registers the factory
-under a name for later retrieval, and enables Application Insights logging.
+Creates a new GoogleTokenProvider instance using either service account JSON
+credentials or Azure AD federated credentials, then stores it as the current
+module-level default provider. Optionally registers the provider by name and
+enables Application Insights logging. In the federated flow, you can optionally
+exchange the federated token for a service-account access token by supplying
+`-ServiceAccountEmail`.
 
 .PARAMETER GoogleAccessJson
 The raw JSON content of the Google service account credentials.
+
+Used by parameter set: ClientSecret.
+
+.PARAMETER AadAuthenticationFactory
+An Azure AD authentication factory configured for workload identity federation.
+
+Used by parameter set: AadFederated.
+
+.PARAMETER WorkloadIdentityProviderResourceId
+The full Google workload identity provider resource identifier configured for
+federated identity.
+
+Used by parameter set: AadFederated.
+
+.PARAMETER ServiceAccountEmail
+The Google service account email used to exchange the federated token for a
+native Google service-account access token. If omitted, the factory uses the
+federated token directly.
+
+Used by parameter set: AadFederated.
 
 .PARAMETER Scopes
 One or more Google API scopes to request when acquiring access tokens.
 
 .PARAMETER TargetUserEmail
 The email address of the user to impersonate. If omitted, no impersonation is used.
+
+Used by parameter set: ClientSecret.
 
 .PARAMETER Name
 An optional name used to register the factory in the module-level factory dictionary.
@@ -164,6 +198,16 @@ Creates a new factory and makes it the current default factory.
 PS> New-GoogleAuthenticationFactory -GoogleAccessJson $jsonData -Scopes 'https://www.googleapis.com/auth/chat.admin.spaces.readonly' -TargetUserEmail 'user@contoso.com' -Name 'chatAdminApi'
 
 Creates a named factory that uses user impersonation.
+
+.EXAMPLE
+PS> New-GoogleAuthenticationFactory -AadAuthenticationFactory $aadFactory -WorkloadIdentityProviderResourceId '//iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com' -ServiceAccountEmail 'service-account@project-id.iam.gserviceaccount.com' -Scopes 'https://www.googleapis.com/auth/cloud-platform' -Name 'federatedApi'
+
+Creates a named factory using Azure AD federated credentials.
+
+.EXAMPLE
+PS> New-GoogleAuthenticationFactory -AadAuthenticationFactory $aadFactory -WorkloadIdentityProviderResourceId '//iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com' -Scopes 'https://www.googleapis.com/auth/cloud-platform' -Name 'federatedApi'
+
+Creates a named factory that uses the federated token directly without service-account exchange.
 
 .OUTPUTS
 GoogleTokenProvider
@@ -196,8 +240,8 @@ function New-GoogleAuthenticationFactory
 
 		[Parameter(ParameterSetName='AadFederated')]
 		[string]
-			#Resource ID of the Google workload identity provider configured in Azure AD
-			#Example: //iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com
+			#email address of the service account to impersonate. If not specified, the factory will use the federated token directly without exchanging for a service account token.
+			#Important: to be able to impersonate, the federated identity must have "Service Account Token Creator" role on the target service account
 		$ServiceAccountEmail,
 		[Parameter(Mandatory)]
 		[string[]]
@@ -256,7 +300,9 @@ Displays diagnostic information about a Google access token.
 .DESCRIPTION
 Calls the factory's token test routine to inspect the current access token. The
 factory can be provided directly, looked up by name, or taken from the current
-module-level default factory.
+module-level default factory. Direct federated tokens are not supported by the
+Google token inspection endpoint used by this command; in that case the command
+returns `$null` and writes a warning.
 
 .PARAMETER Factory
 The authentication factory instance to test. You can pass a factory object or the
@@ -273,8 +319,15 @@ PS> Test-GoogleAccessToken -Factory 'googleAdminApi'
 
 Tests the access token for the named factory.
 
+.EXAMPLE
+PS> Test-GoogleAccessToken -Factory 'federatedApi'
+
+Tests the token for the named factory when the factory is configured to exchange
+the federated token for a service-account token.
+
 .OUTPUTS
 System.Object
+System.Management.Automation.WarningRecord
 #>
 function Test-GoogleAccessToken {
     [CmdletBinding()]
@@ -296,78 +349,97 @@ function Test-GoogleAccessToken {
 }
 #endregion Public commands
 #region Internal commands
+<#
+.SYNOPSIS
+Internal token provider used by the module public commands.
+
+.DESCRIPTION
+`GoogleTokenProvider` encapsulates token acquisition, caching, refresh logic,
+and token diagnostics for Google APIs. It supports two authentication flows:
+
+- `ClientSecret`: Service account JSON private key flow (optionally with user impersonation).
+- `AadFederated`: Azure AD token exchange with Google STS (optionally followed by
+	service account access token generation).
+
+The class is internal to the module and is created by `New-GoogleAuthenticationFactory`.
+#>
 class GoogleTokenProvider
 {
-	hidden [PSCustomObject]$credential
-	hidden $token
-	hidden $AiLogger
-	hidden $AadFactory
-	hidden $WorkloadIdentityProviderResourceId
-	hidden $saEmail
-	hidden [string] $flowType
     [string] $Name
-	[string[]] $scopes
-	[string] $TargetUserEmail
+	[string[]] $Scopes
+	[string] $FlowType
+	hidden $token
+	hidden [PSCustomObject]$Configuration
 
+	# Initializes provider configuration for service-account JSON authentication.
+	# The JSON must contain `client_email` and `private_key` fields.
 	GoogleTokenProvider([string]$googleAccessJson , [string[]]$scopes, $TargetUserEmail, $Name, $AiLogger = $null)
 	{
-		$this.scopes = $scopes
-		$this.TargetUserEmail = $TargetUserEmail
-        $this.Name = $Name
-		$this.credential = ConvertFrom-Json -InputObject $GoogleAccessJson -Depth 10
-		$this.AiLogger = $AiLogger
-		$this.flowType = 'ClientSecret'
+		$this.FlowType = 'ClientSecret'
+		$this.Name = $Name
+		$this.Scopes = $scopes
+		$Credential = ConvertFrom-Json -InputObject $GoogleAccessJson -Depth 10
+		$this.Configuration = [PSCustomObject]@{
+			AiLogger = $AiLogger
+			ServiceAccountEmail = $Credential.client_email
+			TargetUserEmail = $TargetUserEmail
+			PrivateKey = $Credential.private_key -replace '-----BEGIN PRIVATE KEY-----\n' -replace '\n-----END PRIVATE KEY-----\n' -replace '\n'
+		}
 	}
 	
+	# Initializes provider configuration for Azure AD federated authentication.
+	# The provider can optionally exchange the federated token for a native
+	# service-account token when ServiceAccountEmail is supplied.
 	GoogleTokenProvider([object]$aadFactory , [string]$workloadIdentityProviderResourceId, [string]$saEmail,  [string[]]$scopes, $Name, $AiLogger = $null)
 	{
-		$this.scopes = $scopes
-        $this.Name = $Name
-		$this.AadFactory = $aadFactory
-		$this.WorkloadIdentityProviderResourceId = $workloadIdentityProviderResourceId
-		$this.saEmail = $saEmail
-		$this.AiLogger = $AiLogger
-		$this.flowType = 'AadFederated'
+		$this.FlowType = 'AadFederated'
+		$this.Name = $Name
+		$this.Scopes = $scopes
+		$this.Configuration = [PSCustomObject]@{
+			AiLogger = $AiLogger
+			ServiceAccountEmail = $saEmail
+			AadFactory = $aadFactory
+			WorkloadIdentityProviderResourceId = $workloadIdentityProviderResourceId
+		}
 	}
 
+	# Returns a cached token when valid, otherwise acquires a new one.
+	# Set ForceRefresh to bypass cache and always request a new token.
 	[PSCustomObject]GetAccessToken([bool]$ForceRefresh)
 	{
 		if($null -eq $this.token -or $this.token.expiration_time -lt ([DateTime]::UtcNow) -or $ForceRefresh)
 		{
-			$response = $null
-			$requestStart = Get-Date -AsUTC
-			$tokenUri = $null
-			switch($this.flowType)
+			switch($this.FlowType)
 			{
 				'AadFederated'
 				{
 					$tokenUri = "https://sts.googleapis.com/v1/token"
 					Write-Verbose "Getting Google access token using Azure AD federated credentials"
-					$aadToken = Get-AadToken -factory $this.AadFactory
+					$aadToken = Get-AadToken -factory $this.Configuration.AadFactory
 					$payload = @{
 						grant_type         = "urn:ietf:params:oauth:grant-type:token-exchange"
-						audience = $this.WorkloadIdentityProviderResourceId
+						audience           = $this.Configuration.WorkloadIdentityProviderResourceId
 						subject_token_type = "urn:ietf:params:oauth:token-type:jwt"
-						subject_token = $aadToken.AccessToken
+						subject_token      = $aadToken.AccessToken
 						scope              = ($this.Scopes -join " ")
 						requested_token_type = 'urn:ietf:params:oauth:token-type:access_token'
 					}
 					Write-Verbose "Calling Google API to get access token: $tokenUri"
 					$this.token = $this.CallGoogleTokenApi($tokenUri, 'POST', $null, ($payload | ConvertTo-Json), "application/json")
 
-					if(-not [string]::IsNullOrEmpty($this.saEmail))
+					if(-not [string]::IsNullOrEmpty($this.Configuration.ServiceAccountEmail))
 					{
 						#try to exchange federated token for native google token
-						Write-Verbose "Exchanging federated token for native Google access token with service account email $($this.saEmail)"
-						$tokenUri = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$($this.saEmail):generateAccessToken"
-						$body = @{
-							"scope"= $this.scopes
+						Write-Verbose "Exchanging federated token for native Google access token with service account email $($this.Configuration.ServiceAccountEmail)"
+						$tokenUri = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$($this.Configuration.ServiceAccountEmail)`:generateAccessToken"
+						$payload = @{
+							"scope"= $this.Scopes
 							"lifetime"= "3600s"
-						} | ConvertTo-Json
+						}
 						$headers = @{
 							Authorization = "$($this.token.token_type) $($this.token.access_token)"
 						}
-						$finaltoken = $this.CallGoogleTokenApi($tokenUri, 'POST', $headers, $body, "application/json")
+						$finaltoken = $this.CallGoogleTokenApi($tokenUri, 'POST', $headers, ($payload | ConvertTo-Json)	, "application/json")
 						#token comes in different shape from this endpoint, we need to map it back to the same shape as the original token for caching and later use
 						$this.token.access_token = $finaltoken.accessToken
 						$this.token.expiration_time = $finaltoken.expireTime
@@ -379,9 +451,6 @@ class GoogleTokenProvider
 					Write-Verbose "Getting Google access token using client secret flow"
 		            Write-Verbose "Fetching new access token for Google API"
 					$tokenUri = "https://oauth2.googleapis.com/token"
-					$ServiceAccountEmail = $this.credential.client_email
-					Write-Verbose "Extracting private key from credential"
-					$PrivateKey = $this.credential.private_key -replace '-----BEGIN PRIVATE KEY-----\n' -replace '\n-----END PRIVATE KEY-----\n' -replace '\n'
 					$header = @{
 						alg = "RS256"
 						typ = "JWT"
@@ -390,20 +459,20 @@ class GoogleTokenProvider
 					$timestamp = [Math]::Round((Get-Date -UFormat %s))
 					
 					$claimSet = @{
-						iss   = $ServiceAccountEmail
+						iss   = $this.Configuration.ServiceAccountEmail
 						scope = ($this.Scopes -join " ")
 						aud   = "https://oauth2.googleapis.com/token"
 						exp   = $timestamp + 3600
 						iat   = $timestamp
 					}
-					if(-not [string]::IsNullOrEmpty($this.TargetUserEmail))
+					if(-not [string]::IsNullOrEmpty($this.Configuration.TargetUserEmail))
 					{
-						$claimSet.sub =$this.TargetUserEmail
+						$claimSet.sub =$this.Configuration.TargetUserEmail
 					}
 					$claimSetBase64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(($claimSet | ConvertTo-Json)))
 					$signatureInput = $headerBase64 + "." + $claimSetBase64
 					$signatureBytes = [System.Text.Encoding]::UTF8.GetBytes($signatureInput)
-					$privateKeyBytes = [System.Convert]::FromBase64String($PrivateKey)
+					$privateKeyBytes = [System.Convert]::FromBase64String($this.Configuration.PrivateKey)
 					$rsaProvider = [System.Security.Cryptography.RSA]::Create()
 					$bytesRead = $null
 					$rsaProvider.ImportPkcs8PrivateKey($privateKeyBytes, [ref]$bytesRead)
@@ -421,16 +490,22 @@ class GoogleTokenProvider
 				}
 				default
 				{
-					throw "Unsupported flow type: $($this.flowType)"
+					throw "Unsupported flow type: $($this.FlowType)"
 				}
 			}
 		}
-
 		return $this.Token
 	}
 
+	# Validates the current token by calling Google's tokeninfo endpoint.
+	# Returns token metadata when validation succeeds.
     [PSCustomObject]TestAccessToken()
     {
+		if($this.FlowType -eq 'AadFederated' -and [string]::IsNullOrEmpty($this.Configuration.ServiceAccountEmail))
+		{
+			Write-Warning "Test-GoogleAccessToken is not supported for Federated access tokens"
+			return $null
+		}
 		$t = $this.GetAccessToken($false)
 		$headers = @{
 			Authorization = "$($t.token_type) $($t.access_token)"
@@ -449,12 +524,14 @@ class GoogleTokenProvider
         }
 		if($response.StatusCode -ne [System.Net.HttpStatusCode]::OK)
 		{
-			$ex = new-object System.Net.Http.HttpRequestException( $response, $null, $response.StatusCode )
+			$ex = new-object System.Net.Http.HttpRequestException( $response.Content, $null, $response.StatusCode )
 			throw $ex
 		}
 		return ($response.Content | ConvertFrom-Json)
     }
 
+	# Executes token-related HTTP calls and normalizes successful responses
+	# into the module's `Google.AccessToken` shape.
 	hidden [PSCustomObject] CallGoogleTokenApi($uri, $method,  $headers, $body, $contentType)
 	{
 		Write-Verbose "Calling Google API: $uri"
@@ -485,7 +562,7 @@ class GoogleTokenProvider
 				Write-AiDependency -Target 'GoogleAuth' -DependencyType 'HTTP' -Name 'GetAccessToken' -Data $uri -Start $requestStart -ResultCode $response.StatusCode.ToString() -Success $false -Connection $this.AiLogger
 			}
 			
-			$ex = new-object System.Net.Http.HttpRequestException( $response, $null, $response.StatusCode )
+			$ex = new-object System.Net.Http.HttpRequestException( $response.Content, $null, $response.StatusCode )
 			throw $ex
 		}
 	}
