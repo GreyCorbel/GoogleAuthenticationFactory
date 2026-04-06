@@ -96,7 +96,7 @@ Test-GoogleAccessToken -Factory 'chatAdminApi'
 ### Azure AD federated credentials
 
 Before using this flow, configure Entra ID and Google Workload Identity Federation:
-
+#### Entra ID
 1. Create an Entra ID application that publishes an API.
 2. In the Entra ID app manifest, set:
 
@@ -104,15 +104,16 @@ Before using this flow, configure Entra ID and Google Workload Identity Federati
 "accessTokenAcceptedVersion": 2
 ```
 3. Give your Entra ID SPN permission to retrieve tokens for the app created above
-4. Create a Google Workload Identity Pool.
-5. Create a provider in the pool with:
+#### Google
+1. Create a Google Workload Identity Pool.
+2. Create a provider in the pool with:
      - Issuer URL: `https://login.microsoftonline.com/<TENANT-ID>/v2.0`
      - Allowed audience: the Entra ID app client ID from step 1
      - Attribute mapping:
          - `attribute.tid` -> `assertion.tid`
          - `attribute.sub` -> `assertion.sub`
-6. Create a Google service account and grant required Google API permissions/roles.
-7. On the Google service account, grant principal access to the principal below, with roles
+3. Create a Google service account and grant required Google API permissions/roles.
+4. On the Google service account, grant principal access to the principal below, with roles
     - Service Account Token Creator (for impersonation of service account)
     - Workload Identity User (for federation with workload identity pool)
 
@@ -120,7 +121,7 @@ Before using this flow, configure Entra ID and Google Workload Identity Federati
 principalSet://iam.googleapis.com/projects/<PROJECT-NUMBER>/locations/global/workloadIdentityPools/<POOL-ID>/attribute.tid/<TENANT-ID>
 ```
 
-__Note__: Principal to add permissions to: it's any principal coming from federated Entra ID tenant, however additional conditions that limit access are in place:
+__Note__: Principal to add permissions to: seems to be any principal coming from federated Entra ID tenant, however additional conditions that limit access are in place:
 - on Entra ID side: only SPNs with access to the app created in step 1 can request tokens with the right audience
 - on Google side: only SPNs with client id name in `AllowedAudience` of the provider can federate 
 
