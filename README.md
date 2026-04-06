@@ -140,6 +140,8 @@ New-GoogleAuthenticationFactory `
 $token = Get-GoogleAccessToken -Factory 'federatedApi'
 Test-GoogleAccessToken -Factory 'federatedApi'
 ```
+__Note__: In this flow, `-ImpersonationEmail` refers to the Google service account email that is being impersonated, not a user email.  
+__Note__: Without impersonation in federated authentication scenario, Test-GoogleAccessToken is not supported because federated token is not introspected by Google API and will fail with "Invalid Value" error. To test federated token, you can use it in a REST call to Google API and check if it succeeds.
 
 ### Get Authorization header for REST calls
 
