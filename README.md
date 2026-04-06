@@ -7,8 +7,10 @@ PowerShell authentication provider for Google REST APIs.
 This module provides authentication helpers for Google REST APIs. It supports:
 
 - Google service account JSON credentials
-- User impersonation (domain-wide delegation)
+  - With optional user impersonation (domain-wide delegation)
 - Azure AD federated credentials flow
+  - With optional service account impersonation
+
 
 ## Features
 
@@ -18,13 +20,13 @@ This module provides authentication helpers for Google REST APIs. It supports:
 - Force token refresh when needed
 - Inspect issued token content for troubleshooting
 - Optional Application Insights dependency logging via `-AiLogger`
-  - Logger can be created with [AiLogging](https://github.com/GreyCorbel/AiLogging)
+  - Logger can be created with [AiLogging](https://github.com/GreyCorbel/AiLogging) module
 
 ## Requirements
 
-- PowerShell 7.3 or higher
+- PowerShell 7.2 or higher
 
-The module requires .NET cryptography support for PKCS8 keys, which is not available in older runtime combinations.
+The module requires .NET cryptography support for PKCS8 keys, which is not available in Desktop edition of PowerShell.
 
 ## Public Commands
 
@@ -32,6 +34,26 @@ The module requires .NET cryptography support for PKCS8 keys, which is not avail
 - `Get-GoogleAuthenticationFactory`
 - `Get-GoogleAccessToken`
 - `Test-GoogleAccessToken`
+
+## Helper Commands
+
+The module also contains helper commands used internally by the public commands:
+
+- `Get-GoogleData`
+- `Invoke-GoogleWithRetry`
+
+These helpers are included in the source for composition and testing scenarios.
+
+## Command Help
+
+Use built-in PowerShell help to inspect parameters and examples:
+
+```powershell
+Get-Help New-GoogleAuthenticationFactory -Detailed
+Get-Help Get-GoogleAuthenticationFactory -Detailed
+Get-Help Get-GoogleAccessToken -Detailed
+Get-Help Test-GoogleAccessToken -Detailed
+```
 
 ## Usage
 
@@ -64,7 +86,7 @@ $jsonData = Get-Content -Path 'C:\path\to\your\service-account.json' -Raw
 New-GoogleAuthenticationFactory `
     -GoogleAccessJson $jsonData `
     -Scopes @('https://www.googleapis.com/auth/chat.admin.spaces.readonly') `
-    -TargetUserEmail 'myuser@myorganization.com' `
+    -ImpersonationEmail 'myuser@myorganization.com' `
     -Name 'chatAdminApi'
 
 $token = Get-GoogleAccessToken -Factory 'chatAdminApi'
@@ -91,27 +113,31 @@ Before using this flow, configure Entra ID and Google Workload Identity Federati
          - `attribute.sub` -> `assertion.sub`
 6. Create a Google service account and grant required Google API permissions/roles.
 7. On the Google service account, grant principal access to the principal below, with roles
-    - Service Account Token Creator (for impersonation of servie account)
+    - Service Account Token Creator (for impersonation of service account)
     - Workload Identity User (for federation with workload identity pool)
 
 ```text
 principalSet://iam.googleapis.com/projects/<PROJECT-NUMBER>/locations/global/workloadIdentityPools/<POOL-ID>/attribute.tid/<TENANT-ID>
 ```
 
+__Note__: Principal to add permissions to: it's any principal coming from federated Entra ID tenant, however additional conditions that limit access are in place:
+- on Entra ID side: only SPNs with access to the app created in step 1 can request tokens with the right audience
+- on Google side: only SPNs with client id name in `AllowedAudience` of the provider can federate 
+
 ```powershell
 Import-Module AadAuthenticationFactory
-$aadFactory = New-AadAuthenticationFactory -UseManagedIdentity -Name 'uami' -DefaultScopes '<APPI-ID-URI-of-app-created-in-step-1>/.default'
+$aadFactory = New-AadAuthenticationFactory -UseManagedIdentity -Name 'uami' -DefaultScopes '<APP-ID-URI-of-app-created-in-step-1>/.default'
 Import-Module GoogleAuthenticationFactory
 
 New-GoogleAuthenticationFactory `
     -AadAuthenticationFactory $aadFactory `
     -WorkloadIdentityProviderResourceId '//iam.googleapis.com/projects/132546827814/locations/global/workloadIdentityPools/my-pool/providers/entra-id-mytenant-com' `
-    -ServiceAccountEmail 'service-account@project-id.iam.gserviceaccount.com' `
+    -ImpersonationEmail 'service-account@project-id.iam.gserviceaccount.com' `
     -Scopes @('https://www.googleapis.com/auth/cloud-platform') `
     -Name 'federatedApi'
 
 $token = Get-GoogleAccessToken -Factory 'federatedApi'
-Test-GoogleAccessToken
+Test-GoogleAccessToken -Factory 'federatedApi'
 ```
 
 ### Get Authorization header for REST calls
@@ -126,6 +152,28 @@ $response.spaces
 
 ```powershell
 $token = Get-GoogleAccessToken -Factory 'chatAdminApi' -ForceRefresh
+```
+
+### Helper command: Get-GoogleData (automatic paging)
+
+```powershell
+# Return all users across pages from Google Admin SDK
+$users = Get-GoogleData `
+    -Uri 'https://admin.googleapis.com/admin/directory/v1/users?customer=my_customer&maxResults=100' `
+    -DataProperty 'users'
+
+$users.Count
+```
+
+### Helper command: Invoke-GoogleWithRetry (custom request)
+
+```powershell
+# Execute a custom Google API GET request with retry behavior
+$response = Invoke-GoogleWithRetry `
+    -Uri 'https://chat.googleapis.com/v1/spaces?pageSize=50' `
+    -Method Get
+
+$response.spaces
 ```
 
 ### With Application Insights logging
@@ -145,9 +193,17 @@ $jsonData = Get-Content -Path 'C:\path\to\your\service-account.json' -Raw
 New-GoogleAuthenticationFactory `
     -GoogleAccessJson $jsonData `
     -Scopes @('https://www.googleapis.com/auth/chat.admin.spaces.readonly') `
-    -TargetUserEmail 'myuser@myorganization.com' `
+    -ImpersonationEmail 'myuser@myorganization.com' `
     -Name 'chatAdminApi' `
     -AiLogger $AiLogger
 ```
+
+## Notes
+
+- `-ImpersonationEmail` is used for both flows:
+    - service account JSON flow: user email to impersonate
+    - Azure AD federated flow: Google service account email to impersonate
+- `-TargetUserEmail` is still supported as an alias for backward compatibility.
+- `-WorkloadIdentityProviderResourceId` must start with `//`.
 
 

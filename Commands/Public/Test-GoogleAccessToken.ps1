@@ -47,7 +47,7 @@ function Test-GoogleAccessToken {
         if($Factory -is [string])
         {
             #name of factory has been passed
-            $Factory = Get-GoogleAuthenticationFactory -Name $GoogleTokenProvider
+            $Factory = Get-GoogleAuthenticationFactory -Name $Factory
         }
         $Factory.TestAccessToken()
     }

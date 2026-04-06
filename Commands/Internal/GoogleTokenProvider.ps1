@@ -116,7 +116,7 @@ class GoogleTokenProvider
 					}
 					if(-not [string]::IsNullOrEmpty($this.Configuration.TargetUserEmail))
 					{
-						$claimSet.sub =$this.Configuration.TargetUserEmail
+						$claimSet.sub = $this.Configuration.TargetUserEmail
 					}
 					$claimSetBase64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(($claimSet | ConvertTo-Json)))
 					$signatureInput = $headerBase64 + "." + $claimSetBase64
