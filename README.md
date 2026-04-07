@@ -28,16 +28,16 @@ This module provides authentication helpers for Google REST APIs. It supports:
 
 The module requires .NET cryptography support for PKCS8 keys, which is not available in Desktop edition of PowerShell.
 
-## Public Commands
+## Authentication Commands
 
 - `New-GoogleAuthenticationFactory`
 - `Get-GoogleAuthenticationFactory`
 - `Get-GoogleAccessToken`
 - `Test-GoogleAccessToken`
 
-## Helper Commands
+## Data Processing Commands
 
-The module also contains helper commands used internally by the public commands:
+The module also contains data retrieval / processing commands:
 
 - `Get-GoogleData`
 - `Invoke-GoogleWithRetry`
@@ -157,7 +157,7 @@ $response.spaces
 $token = Get-GoogleAccessToken -Factory 'chatAdminApi' -ForceRefresh
 ```
 
-### Helper command: Get-GoogleData (automatic paging)
+### Data retrieval command: Get-GoogleData (automatic paging)
 
 ```powershell
 # Return all users across pages from Google Admin SDK
@@ -168,7 +168,7 @@ $users = Get-GoogleData `
 $users.Count
 ```
 
-### Helper command: Invoke-GoogleWithRetry (custom request)
+### Data processing command: Invoke-GoogleWithRetry (custom request)
 
 ```powershell
 # Execute a custom Google API GET request with retry behavior
